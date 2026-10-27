@@ -130,20 +130,20 @@ def analyse_probe(log: str, fault_at: float) -> dict[str, float | int | None]:
 
 
 def path(t: Transport, intent: Intent) -> dict[str, str]:
-    """Where site-to-site traffic goes right now: traceroute from h1, and p1/p3's routes."""
-    out = {}
-    try:
-        tr = t.net("h1", "traceroute -n -q 1 -w 1 -m 8 192.168.2.10", timeout=20)
+    """Where site-to-site traffic goes right now: traceroute from h1, and each core
+    router's kernel forwarding decision (`ip route get`) in both directions."""
+    out: dict[str, str] = {}
+    try:  # netshoot has traceroute; run it inside the h1 container
+        tr = t.sh("h1", "traceroute -n -q 1 -w 1 -m 8 192.168.2.10", timeout=20)
         out["traceroute"] = " ".join(re.findall(r"^\s*\d+\s+(\S+)", tr, re.M))
     except CommandFailed as exc:
         out["traceroute"] = f"failed: {exc}"[:200]
-    for node, dest in (("p1", "192.168.2.10"), ("p3", "192.168.1.10")):
-        try:
-            route = Device(node, t).vtysh(f"show ip route {dest}")
-            hops = re.findall(r"\* (?:via )?(\S+), (\S+)", route)
-            out[f"{node}->{dest}"] = "; ".join(f"{a} {b}" for a, b in hops) or route.strip().splitlines()[0][:120]
-        except CommandFailed as exc:
-            out[f"{node}->{dest}"] = f"failed: {exc}"[:200]
+    for node in sorted(intent.isis_routers()):
+        for dest in ("192.168.2.10", "192.168.1.10"):
+            try:
+                out[f"{node}->{dest}"] = " ".join(t.net(node, f"ip route get {dest}").split()[:5])
+            except CommandFailed as exc:
+                out[f"{node}->{dest}"] = f"failed: {exc}"[:160]
     return out
 
 
