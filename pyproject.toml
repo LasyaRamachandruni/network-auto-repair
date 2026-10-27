@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "network-auto-repair"
+version = "0.1.0"
+description = "Intent-driven repair automation for an FRR lab: IS-IS core, OSPF multi-area site, eBGP failover"
+requires-python = ">=3.10"
+dependencies = ["pyyaml>=6"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+include = ["netrepair*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
