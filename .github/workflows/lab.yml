@@ -44,7 +44,7 @@ jobs:
           from netrepair.device import DockerExec
           from netrepair.intent import load
           t0 = time.time()
-          wait_healthy(load(), DockerExec(), timeout=180)
+          wait_healthy(load(), DockerExec(), timeout=300)
           print(f"healthy after {time.time() - t0:.1f} s")
           PY
       - name: Protocol state (debug output)

@@ -207,3 +207,12 @@ def test_device_quotes_vtysh_commands():
     t = FakeTransport()
     Device("p1", t).configure("interface eth2", "isis metric 1000")
     assert t.calls == [("p1", "vtysh -c 'configure terminal' -c 'interface eth2' -c 'isis metric 1000' -c 'end'")]
+
+
+def test_each_router_runs_only_its_protocols():
+    from netrepair.render import daemons
+
+    on = lambda r: {ln.split("=")[0] for ln in daemons(INTENT, INTENT.routers[r]).splitlines() if ln.endswith("=yes")}  # noqa: E731
+    assert on("p1") == {"zebra", "staticd", "isisd", "bgpd"}
+    assert on("a1") == {"zebra", "staticd", "ospfd"}
+    assert on("ce2") == {"zebra", "staticd", "bgpd"}

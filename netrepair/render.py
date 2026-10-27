@@ -18,19 +18,23 @@ from .intent import Intent, Link, Router
 BUILD = Path(__file__).resolve().parent.parent / "lab" / "build"
 LAB_NAME = "netrepair"
 
-DAEMONS = """\
-zebra=yes
-bgpd=yes
-ospfd=yes
-isisd=yes
-staticd=yes
-vtysh_enable=yes
-zebra_options="  -A 127.0.0.1 -s 90000000"
-bgpd_options="   -A 127.0.0.1"
-ospfd_options="  -A 127.0.0.1"
-isisd_options="  -A 127.0.0.1"
-staticd_options="-A 127.0.0.1"
-"""
+def daemons(intent: Intent, r: Router) -> str:
+    """FRR's daemons file for one router: only the protocols it runs.
+
+    Starting every daemon on every router made start-up slow enough on a 4-core
+    runner that FRR's watchfrr timed out and restarted them, leaving BGP idle.
+    """
+    run = {"zebra", "staticd"}
+    if r.name in intent.isis_routers():
+        run.add("isisd")
+    if r.name in intent.ospf_routers():
+        run.add("ospfd")
+    if r.asn is not None:
+        run.add("bgpd")
+    lines = [f"{d}={'yes' if d in run else 'no'}" for d in ("zebra", "bgpd", "ospfd", "isisd", "staticd")]
+    lines += ["vtysh_enable=yes", 'zebra_options="  -A 127.0.0.1 -s 90000000"', 'bgpd_options="   -A 127.0.0.1"',
+              'ospfd_options="  -A 127.0.0.1"', 'isisd_options="  -A 127.0.0.1"', 'staticd_options="-A 127.0.0.1"']
+    return "\n".join(lines) + "\n"
 
 
 def interface_block(intent: Intent, r: Router, lk: Link) -> list[str]:
@@ -129,12 +133,14 @@ def frr_conf(intent: Intent, r: Router) -> str:
 
 def topology(intent: Intent, build: Path) -> dict:
     nodes: dict[str, dict] = {}
-    for name in intent.routers:
+    for i, name in enumerate(intent.routers):
         nodes[name] = {"kind": "linux", "image": intent.image,
                        "binds": [f"{build / name / 'frr.conf'}:/etc/frr/frr.conf",
-                                 f"{build / 'daemons'}:/etc/frr/daemons",
+                                 f"{build / name / 'daemons'}:/etc/frr/daemons",
                                  f"{build / 'vtysh.conf'}:/etc/frr/vtysh.conf"],
-                       "sysctls": {"net.ipv4.ip_forward": 1}}
+                       "sysctls": {"net.ipv4.ip_forward": 1},
+                       # stagger start-up so the routers don't all compete for the CPU at once
+                       "startup-delay": 3 * i}
     links = [{"endpoints": [str(lk.a), str(lk.b)]} for lk in intent.links]
     for host, spec in intent.hosts.items():
         nodes[host] = {"kind": "linux", "image": intent.host_image,
@@ -146,11 +152,11 @@ def topology(intent: Intent, build: Path) -> dict:
 
 def render(intent: Intent, build: Path = BUILD) -> Path:
     build.mkdir(parents=True, exist_ok=True)
-    (build / "daemons").write_text(DAEMONS)
     (build / "vtysh.conf").write_text("service integrated-vtysh-config\n")
     for r in intent.routers.values():
         (build / r.name).mkdir(exist_ok=True)
         (build / r.name / "frr.conf").write_text(frr_conf(intent, r))
+        (build / r.name / "daemons").write_text(daemons(intent, r))
     topo = build / f"{LAB_NAME}.clab.yml"
     topo.write_text(yaml.safe_dump(topology(intent, build), sort_keys=False))
     return topo
