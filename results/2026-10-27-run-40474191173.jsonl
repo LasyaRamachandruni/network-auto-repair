@@ -1,0 +1,12 @@
+{"scenario": "gray_core_link", "run": 1, "detect_s": 0.08, "act_s": 4.48, "lost": 28, "recovered_s": 5.05}
+{"scenario": "gray_core_link", "run": 2, "detect_s": 0.02, "act_s": 4.37, "lost": 32, "recovered_s": 5.16}
+{"scenario": "gray_core_link", "run": 3, "detect_s": 0.02, "act_s": 4.32, "lost": 34, "recovered_s": 5.16}
+{"scenario": "core_link_down", "run": 1, "detect_s": 0.01, "act_s": 3.06, "lost": 3, "recovered_s": 0.16}
+{"scenario": "core_link_down", "run": 2, "detect_s": 0.01, "act_s": 2.13, "lost": 3, "recovered_s": 0.16}
+{"scenario": "core_link_down", "run": 3, "detect_s": 0.01, "act_s": 2.12, "lost": 3, "recovered_s": 0.16}
+{"scenario": "primary_uplink_down", "run": 1, "detect_s": 0.01, "act_s": 2.11, "lost": 4, "recovered_s": 0.21}
+{"scenario": "primary_uplink_down", "run": 2, "detect_s": 0.01, "act_s": 2.09, "lost": 4, "recovered_s": 0.21}
+{"scenario": "primary_uplink_down", "run": 3, "detect_s": 0.01, "act_s": 2.05, "lost": 4, "recovered_s": 0.21}
+{"scenario": "ospf_drift", "run": 1, "detect_s": 0.08, "act_s": 2.22, "lost": 0, "recovered_s": 0.0}
+{"scenario": "ospf_drift", "run": 2, "detect_s": 0.08, "act_s": 2.26, "lost": 0, "recovered_s": 0.0}
+{"scenario": "ospf_drift", "run": 3, "detect_s": 0.08, "act_s": 2.24, "lost": 0, "recovered_s": 0.0}
