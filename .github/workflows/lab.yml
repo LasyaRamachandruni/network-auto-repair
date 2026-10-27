@@ -1,0 +1,74 @@
+name: Lab (FRR in containerlab)
+
+# Deploys the lab (3 IS-IS core routers, a dual-homed OSPF site, a single-homed
+# site, two hosts) on the runner, checks it converges, then runs the
+# fault-injection experiment. Results are posted as notices on the run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: runs per scenario
+        default: "3"
+  push:
+    branches: [main]
+    paths: ["lab/**", "netrepair/**", ".github/workflows/lab.yml"]
+
+concurrency:
+  group: lab
+  cancel-in-progress: true
+
+jobs:
+  lab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install containerlab and the package
+        run: |
+          bash -c "$(curl -sL https://get.containerlab.dev)"
+          containerlab version
+          pip install -e .
+          echo "{\"cpus\": $(nproc), \"kernel\": \"$(uname -r)\"}" > machine.json
+          ci/notice.sh machine machine.json
+      - name: Deploy
+        run: python -m netrepair deploy
+      - name: Converged?
+        run: |
+          python - <<'PY'
+          import time
+          from netrepair.experiment import wait_healthy
+          from netrepair.device import DockerExec
+          from netrepair.intent import load
+          t0 = time.time()
+          wait_healthy(load(), DockerExec(), timeout=180)
+          print(f"healthy after {time.time() - t0:.1f} s")
+          PY
+      - name: Protocol state (debug output)
+        if: always()
+        run: |
+          ci/notice.sh "p1 isis neighbors" -- docker exec clab-netrepair-p1 vtysh -c "show isis neighbor json"
+          ci/notice.sh "p3 bgp summary" -- docker exec clab-netrepair-p3 vtysh -c "show bgp summary json"
+          ci/notice.sh "ce1 routes" -- docker exec clab-netrepair-ce1 vtysh -c "show ip route"
+          ci/notice.sh "ce1 ospf neighbors" -- docker exec clab-netrepair-ce1 vtysh -c "show ip ospf neighbor json"
+          ci/notice.sh "a1 running-config" -- docker exec clab-netrepair-a1 vtysh -c "show running-config"
+          ci/notice.sh "status" -- python -m netrepair status
+          ci/notice.sh "h1 to h2" -- sudo ip netns exec clab-netrepair-h1 ping -c 3 192.168.2.10
+      - name: Experiment
+        run: python -m netrepair experiment --runs "${{ inputs.runs || '3' }}"
+      - name: Results
+        if: always()
+        run: |
+          ci/notice.sh experiment.jsonl results/experiment.jsonl
+          ci/notice.sh actions.jsonl results/actions.jsonl
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: results
+          path: results/
+      - name: Destroy
+        if: always()
+        run: python -m netrepair destroy || true
