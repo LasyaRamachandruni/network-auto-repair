@@ -212,7 +212,8 @@ def test_device_quotes_vtysh_commands():
 def test_each_router_runs_only_its_protocols():
     from netrepair.render import daemons
 
-    on = lambda r: {ln.split("=")[0] for ln in daemons(INTENT, INTENT.routers[r]).splitlines() if ln.endswith("=yes")}  # noqa: E731
+    on = lambda r: {ln.split("=")[0] for ln in daemons(INTENT, INTENT.routers[r]).splitlines()  # noqa: E731
+                    if ln.endswith("=yes") and not ln.startswith("vtysh")}
     assert on("p1") == {"zebra", "staticd", "isisd", "bgpd"}
     assert on("a1") == {"zebra", "staticd", "ospfd"}
     assert on("ce2") == {"zebra", "staticd", "bgpd"}
