@@ -87,8 +87,8 @@ def frr_conf(intent: Intent, r: Router) -> str:
                   " log-adjacency-changes", "exit", "!"]
     if is_ospf:
         lines += ["router ospf", f" ospf router-id {r.loopback}"]
-        if r.ospf_default_originate:
-            lines += [" default-information originate always"]
+        if r.ospf_redistribute_bgp:
+            lines += [" redistribute bgp route-map BGP-TO-OSPF"]
         lines += ["exit", "!"]
 
     if r.asn is not None:
@@ -102,6 +102,7 @@ def frr_conf(intent: Intent, r: Router) -> str:
                       "route-map BACKUP-IN permit 10", " match ip address prefix-list FROM-PROVIDER",
                       " set local-preference 100", "exit", "!",
                       "route-map PRIMARY-OUT permit 10", " match ip address prefix-list OWN", "exit", "!",
+                      "route-map BGP-TO-OSPF permit 10", " match ip address prefix-list FROM-PROVIDER", "exit", "!",
                       "route-map BACKUP-OUT permit 10", " match ip address prefix-list OWN",
                       f" set as-path prepend {r.asn} {r.asn}", "exit", "!"]
         else:

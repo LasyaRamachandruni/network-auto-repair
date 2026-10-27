@@ -57,7 +57,7 @@ def test_dual_homed_site_prefers_primary_both_ways():
     assert "neighbor 10.1.2.0 route-map BACKUP-IN in" in conf  # p2: local-pref 100
     assert "set as-path prepend 65001 65001" in conf  # return traffic avoids the backup
     assert "ip prefix-list OWN seq 10 permit 192.168.1.0/24" in conf
-    assert "default-information originate always" in conf
+    assert "redistribute bgp route-map BGP-TO-OSPF" in conf  # the other site's routes, into OSPF
 
 
 def test_a1_is_a_multi_area_abr():

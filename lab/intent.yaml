@@ -42,7 +42,10 @@ routers:
   ce1:
     asn: 65001
     loopback: 10.255.1.1
-    ospf_default_originate: true   # give a1 a way out
+    # Hand the other site's routes (learned over BGP) to a1 as specific OSPF
+    # externals. A default route wouldn't do: in containerlab every node already
+    # has a default route via its management interface, and that one would win.
+    ospf_redistribute_bgp: true
     bgp_networks: [192.168.1.0/24]
   a1:
     loopback: 10.255.1.2

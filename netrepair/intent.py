@@ -55,7 +55,7 @@ class Router:
     isis_net: str | None = None
     lan: dict[str, Any] | None = None
     bgp_networks: list[str] = field(default_factory=list)
-    ospf_default_originate: bool = False
+    ospf_redistribute_bgp: bool = False
 
 
 @dataclass
