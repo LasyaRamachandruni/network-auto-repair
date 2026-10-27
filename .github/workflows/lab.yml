@@ -50,11 +50,12 @@ jobs:
       - name: Protocol state (debug output)
         if: always()
         run: |
+          ci/notice.sh "ce2 container log" -- docker logs --tail 40 clab-netrepair-ce2
+          ci/notice.sh "ce2 processes" -- docker exec clab-netrepair-ce2 ps
           ci/notice.sh "p1 isis neighbors" -- docker exec clab-netrepair-p1 vtysh -c "show isis neighbor json"
           ci/notice.sh "p3 bgp summary" -- docker exec clab-netrepair-p3 vtysh -c "show bgp summary json"
           ci/notice.sh "ce1 routes" -- docker exec clab-netrepair-ce1 vtysh -c "show ip route"
           ci/notice.sh "ce1 ospf neighbors" -- docker exec clab-netrepair-ce1 vtysh -c "show ip ospf neighbor json"
-          ci/notice.sh "a1 running-config" -- docker exec clab-netrepair-a1 vtysh -c "show running-config"
           ci/notice.sh "status" -- python -m netrepair status
           ci/notice.sh "h1 to h2" -- sudo ip netns exec clab-netrepair-h1 ping -c 3 192.168.2.10
       - name: Experiment
