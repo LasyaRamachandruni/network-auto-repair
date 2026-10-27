@@ -10,6 +10,9 @@ on:
       runs:
         description: runs per scenario
         default: "3"
+      only:
+        description: scenarios to run (space-separated; empty = all)
+        default: ""
   push:
     branches: [main]
     paths: ["lab/**", "netrepair/**", ".github/workflows/lab.yml"]
@@ -59,7 +62,10 @@ jobs:
           ci/notice.sh "status" -- python -m netrepair status
           ci/notice.sh "h1 to h2" -- sudo ip netns exec clab-netrepair-h1 ping -c 3 192.168.2.10
       - name: Experiment
-        run: python -m netrepair experiment --runs "${{ inputs.runs || '3' }}"
+        run: |
+          args=""
+          for s in ${{ inputs.only || '' }}; do args="$args --only $s"; done
+          python -m netrepair experiment --runs "${{ inputs.runs || '3' }}" $args
       - name: Results
         if: always()
         run: |

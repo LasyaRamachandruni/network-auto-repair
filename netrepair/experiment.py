@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -105,19 +106,45 @@ def stop_probe(t: Transport) -> str:
 
 
 def analyse_probe(log: str, fault_at: float) -> dict[str, float | int | None]:
-    """Lost packets after the fault and when the last one was sent, from `ping -D` output."""
+    """Lost packets after the fault and when the last one was sent, from `ping -D` output.
+
+    Uses ping's own "N packets transmitted" summary for the last sequence number,
+    so losses at the very end (traffic never came back) are counted too.
+    """
     received: dict[int, float] = {}
     for m in re.finditer(r"\[(\d+\.\d+)\] .*?icmp_seq=(\d+)", log):
         received[int(m.group(2))] = float(m.group(1))
     if not received:
         return {"sent": 0, "lost": None, "recovered_s": None}
-    first_seq, last_seq = min(received), max(received)
+    first_seq = min(received)
+    summary = re.search(r"(\d+) packets transmitted", log)
+    last_seq = int(summary.group(1)) if summary else max(received)
     t0 = received[first_seq] - (first_seq - 1) * PROBE_INTERVAL  # when seq 1 was sent (approximately)
     send_time = lambda seq: t0 + (seq - 1) * PROBE_INTERVAL  # noqa: E731
-    lost = [s for s in range(first_seq, last_seq) if s not in received and send_time(s) >= fault_at]
+    lost = [s for s in range(first_seq, last_seq + 1) if s not in received and send_time(s) >= fault_at]
+    recovered = not lost or max(received) > max(lost)
     sent_after = sum(1 for s in range(first_seq, last_seq + 1) if send_time(s) >= fault_at)
     return {"sent": sent_after, "lost": len(lost),
-            "recovered_s": round(send_time(max(lost)) + PROBE_INTERVAL - fault_at, 2) if lost else 0.0}
+            "recovered_s": (round(send_time(max(lost)) + PROBE_INTERVAL - fault_at, 2) if lost else 0.0)
+            if recovered else None}  # None: traffic had not come back when the probe stopped
+
+
+def path(t: Transport, intent: Intent) -> dict[str, str]:
+    """Where site-to-site traffic goes right now: traceroute from h1, and p1/p3's routes."""
+    out = {}
+    try:
+        tr = t.net("h1", "traceroute -n -q 1 -w 1 -m 8 192.168.2.10", timeout=20)
+        out["traceroute"] = " ".join(re.findall(r"^\s*\d+\s+(\S+)", tr, re.M))
+    except CommandFailed as exc:
+        out["traceroute"] = f"failed: {exc}"[:200]
+    for node, dest in (("p1", "192.168.2.10"), ("p3", "192.168.1.10")):
+        try:
+            route = Device(node, t).vtysh(f"show ip route {dest}")
+            hops = re.findall(r"\* (?:via )?(\S+), (\S+)", route)
+            out[f"{node}->{dest}"] = "; ".join(f"{a} {b}" for a, b in hops) or route.strip().splitlines()[0][:120]
+        except CommandFailed as exc:
+            out[f"{node}->{dest}"] = f"failed: {exc}"[:200]
+    return out
 
 
 def wait_healthy(intent: Intent, t: Transport, timeout: float = 120) -> None:
@@ -141,9 +168,17 @@ def run_once(intent: Intent, t: Transport, sc: Scenario, log_path: Path) -> dict
     ctl = Controller(intent, t, log_path=log_path)
     start_probe(t)
     time.sleep(2)
+    before = path(t, intent)
     fault_at = time.time()
     sc.inject(t)
+    # Snapshot the path 1.5 s in (protocols have reacted, repair usually not yet),
+    # on a side thread so it doesn't delay the controller.
+    during: dict[str, str] = {}
+    snap = threading.Thread(target=lambda: (time.sleep(1.5), during.update(path(t, intent))))
+    snap.start()
     ctl.run(seconds=60, until=sc.done)
+    snap.join()
+    after = path(t, intent)
     time.sleep(5)  # let traffic settle so the probe shows full recovery
     probe = analyse_probe(stop_probe(t), fault_at)
     acted = next((a for a in ctl.actions if sc.done(_Single(a))), None)
@@ -153,6 +188,9 @@ def run_once(intent: Intent, t: Transport, sc: Scenario, log_path: Path) -> dict
         "act_s": round(acted.detail["completed_at"] - fault_at, 2) if acted else None,
         "action": f"{acted.kind}: {acted.reason}" if acted else None,
         **probe,
+        "path_before": before,
+        "path_during": during,
+        "path_after_action": after,
     }
     sc.undo(t)
     for link in list(ctl.drained):
