@@ -21,6 +21,11 @@ host_image: nicolaka/netshoot:v0.13
 timers:
   isis_hello: 1        # seconds; IS-IS hold time = hello x multiplier
   isis_multiplier: 3
+  # FRR waits up to 30 s between regenerations of a router's link-state packet
+  # by default, so a drain (metric change) or a failed link could take that long
+  # to reach the other routers. 1 s keeps reaction time in line with the hellos.
+  isis_lsp_gen_interval: 1
+  isis_spf_interval: 1
   ospf_hello: 1
   ospf_dead: 4
   bgp_keepalive: 3

@@ -46,6 +46,7 @@ def test_core_router_config_has_isis_and_ibgp_mesh():
     conf = frr_conf(INTENT, INTENT.routers["p1"])
     assert "router isis core" in conf and "net 49.0001.0000.0000.0001.00" in conf
     assert "metric-style wide" in conf  # needed for drain metrics above 63
+    assert "lsp-gen-interval 1" in conf and "spf-interval 1" in conf  # react in ~1 s, not up to 30 s
     for peer in ("10.255.0.2", "10.255.0.3"):
         assert f"neighbor {peer} remote-as 65000" in conf and f"neighbor {peer} next-hop-self" in conf
     assert "neighbor 10.1.1.1 remote-as 65001" in conf  # eBGP to ce1

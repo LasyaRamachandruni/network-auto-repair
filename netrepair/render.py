@@ -88,6 +88,7 @@ def frr_conf(intent: Intent, r: Router) -> str:
     if is_core:
         assert r.isis_net
         lines += ["router isis core", f" net {r.isis_net}", " is-type level-2-only", " metric-style wide",
+                  f" lsp-gen-interval {t['isis_lsp_gen_interval']}", f" spf-interval {t['isis_spf_interval']}",
                   " log-adjacency-changes", "exit", "!"]
     if is_ospf:
         lines += ["router ospf", f" ospf router-id {r.loopback}"]

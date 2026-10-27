@@ -139,12 +139,23 @@ def path(t: Transport, intent: Intent) -> dict[str, str]:
     except CommandFailed as exc:
         out["traceroute"] = f"failed: {exc}"[:200]
     for node in sorted(intent.isis_routers()):
-        for dest in ("192.168.2.10", "192.168.1.10"):
+        for dest in ("192.168.2.10", "192.168.1.10", *(intent.routers[r].loopback for r in sorted(intent.isis_routers())
+                                                         if r != node)):
             try:
                 out[f"{node}->{dest}"] = " ".join(t.net(node, f"ip route get {dest}").split()[:5])
             except CommandFailed as exc:
                 out[f"{node}->{dest}"] = f"failed: {exc}"[:160]
     return out
+
+
+def normal_path(t: Transport) -> bool:
+    """Both directions back on the direct p1-p3 link (so a run doesn't start mid-reconvergence)."""
+    try:
+        fwd = t.net("p1", "ip route get 192.168.2.10")
+        back = t.net("p3", "ip route get 192.168.1.10")
+    except CommandFailed:
+        return False
+    return "10.0.13.1" in fwd and "10.0.13.0" in back
 
 
 def wait_healthy(intent: Intent, t: Transport, timeout: float = 120) -> None:
@@ -156,7 +167,7 @@ def wait_healthy(intent: Intent, t: Transport, timeout: float = 120) -> None:
         e2e = Device("h1", t).ping("192.168.2.10", count=10)
         lossy = [k for k, v in obs.link_loss.items() if v > 0]
         problems = bgp_down + [f"drift {k}" for k in obs.drift] + [f"loss {k}" for k in lossy] + obs.errors
-        if e2e == 0 and not problems:
+        if e2e == 0 and not problems and normal_path(t):
             return
         last = f"e2e loss {e2e:.0%}; " + "; ".join(problems)
         time.sleep(2)
